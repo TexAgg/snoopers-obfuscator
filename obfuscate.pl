@@ -4,8 +4,21 @@ use warnings;
 use Modern::Perl;
 use Mojo::UserAgent;
 
+# Location on disk of the dictionary you want to use. By default use system words but I recommend,
+# top 20k most common google search words, https://github.com/first20hours/google-10000-english/blob/master/20k.txt
+my $wordlist;
+if (-e 20k.txt) {
+	$wordlist = '20k.txt';
+} else {
+	$wordlist = '/usr/share/dict/words';
+} 
+
+# fetch, but don't parse these
+my $badfiles = "pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|jpg|jpeg|gif|png";
+
 # List of user agent strings
 my @ua_strings = (
+	'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0',
 	'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:39.0) Gecko/20100101 Firefox/39.0',
 	'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:39.0) Gecko/20100101 Firefox/39.0',
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.10; rv:39.0) Gecko/20100101 Firefox/39.0',
@@ -33,8 +46,34 @@ my @ua_strings = (
 );
 my $num_ua = scalar @ua_strings;
 
-# list of words to search
-my @words = ("news", "uk news", "surveillance", "weird news", "celebrity news", "world news", "gchq", "nsa", "tv news", "facebook", "twitter");
+# List of header accept strings
+my @ha_strings = (
+	'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+);
+my $num_ha = scalar @ha_strings;
+# List of header language accept strings
+my @la_strings = (
+	'Accept-Language: en-US,en;q=0.5'
+);
+my $num_la = scalar @la_strings;
+# List of header content-type strings
+my @ct_strings = (
+	'Content-Type: application/x-www-form-urlencoded'
+);
+my $num_ct = scalar @ct_strings;
+
+
+# List of plausible google search client/sourceid/encoding strings
+# ... that webhp? one with #q= and %20 instead of + really makes templating hard.
+my @google_strings = (
+	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&sourceid=chrome&es_sm=93&ie=UTF-8',
+	'search?client=ubuntu&channel=fs&q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=utf-8&oe=utf-8',
+	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=utf-8&oe=utf-8',
+	'webhp?sourceid=chrome-instant&ion=1&espv=2&es_th=1&ie=UTF-8&client=ubuntu#q=' . 'PLACEHOLDER' . '%20' . 'PLACEHOLDER' . '&es_th=1'
+);
+
+## list of words to search
+#my @words = ("news", "uk news", "surveillance", "weird news", "celebrity news", "world news", "gchq", "nsa", "tv news", "facebook", "twitter", "snowden", "us news");
 
 my @sites = <DATA>;
 my $num_sites = scalar @sites;
@@ -50,10 +89,41 @@ while (1) {
 	my $rand_ua = int(rand($num_ua-1));
 	$ua->transactor->name($ua_strings[$rand_ua]);
 
+	# choose and set the other relevant headers to browser-like strings
+	# ref: https://msoulier.wordpress.com/2012/08/06/custom-request-headers-in-mojo/
+	$ua->once(start => sub {
+		my ($ua, $tx) = @_;
+	
+		# Accept:
+		my $rand_ha = int(rand($num_ha-1));
+		$tx->req->headers->header('Accept' => "$ha_strings[$rand_ha]");
+		# Accept-Language:
+		my $rand_la = int(rand($num_la-1));
+		$tx->req->headers->header('Accept-Language' => "$la_strings[$rand_la]");
+		# Content-Type:
+		my $rand_ct = int(rand($num_ct-1));
+		$tx->req->headers->header('Content-Type' => "$ct_strings[$rand_ct]");
+		# Maybe set random cookies in the future?
+	});
+
 	# do a random search or a random site crawl
 	my $site;
-	if (rand(int(10)) % 2) {
-		my $tx = $ua->get('https://www.google.co.uk/search?q=' . $words[rand(int(scalar(@words -1)))]);
+	if (int(rand(10)) % 2) {
+		my $num_google = scalar @google_strings;
+		my $rand_google = int(rand($num_google));
+		my $actual_random_google_string = $google_strings[$rand_google];
+		# count instead of hardcode two in case I want to add random number of random words later
+		my $count = () = $actual_random_google_string =~ /PLACEHOLDER/g;
+		for ($count; $count > 0; $count--) {
+			my $random_word = rand_word();
+			$actual_random_google_string =~ s/PLACEHOLDER/$random_word/;
+		}
+		my $get_request = "https://www.google.com/$actual_random_google_string";
+		say "Search request: $get_request\n";
+		my $tx = $ua->get($get_request);
+#		my $tx = $ua->get('https://www.google.co.uk/search?q=' . $words[rand(int(scalar(@words -1)))] . " " . rand_word());
+#		my $tx = $ua->get('https://www.google.co.uk/search?q=' . rand_word() . " " . rand_word());
+#		my $tx = $ua->get('https://www.google.com/search?client=ubuntu&channel=fs&q=' . rand_word() . "+" . rand_word() . '&ie=utf-8&oe=utf-8');
 		if (my $res = $tx->success) {
 			my @links = $res->dom->find('h3.r a[href^="http"]')->each;
 			my $num_links = scalar @links;
@@ -63,13 +133,18 @@ while (1) {
 		}
 	} else {
 		my $num = int(rand($num_sites-1));
-		$site = $sites[$num];
+		my $site = $sites[$num];
 		chomp($site);
 	}
 	say $site;
 
 	# fetch random site
 	my $tx = $ua->get($site);
+
+	# but skip parsing pdf or other binary files for URLs since it uses 100% cpu forever and fails
+	print "\nsite: $site\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
+	next if ($site =~ /.+\.($badfiles)$/i);
+
 	if (my $res = $tx->success) {
 		# grab array of valid links on the page
 		my @links = $res->dom->find('a[href^="http"]')->each;
@@ -83,9 +158,13 @@ while (1) {
 			# fetch that random link
 			my $tx = $ua->get($rand_link->{'href'});
 
+			# but skip parsing pdf or other binary files for URLs since it uses 100% cpu forever and fails
+			print "\nsite: " . $rand_link->{'href'} . "\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
+			next if ($rand_link->{'href'} =~ /.+\.($badfiles)$/i);
+
 			# recurse
 			if (my $res = $tx->success) {
-				# say $res->dom->at('title')->text;
+				say $res->dom->at('title')->text;
 				# grab array of valid links on the page
 				my @links = $res->dom->find('a[href^="http"]')->each;
 				my $num_links = scalar @links;
@@ -99,22 +178,45 @@ while (1) {
 					my $tx = $ua->get($rand_link->{'href'});
 
 					# sleep a random amount of time
-					sleep(rand(2));
+					sleep(rand(10));
 				}
 			}
 			# sleep a random amount of time
-			sleep(rand(4));
+			sleep(rand(20));
 		}
 	}
 	# sleep a random amount of time
-	sleep(rand(3));
+	sleep(rand(15));
 }
+
+sub rand_word {
+	my $rand_length = int(rand(6));
+	my $desired_length = 3 + $rand_length;
+	my $selected_word;
+	my $candidate_count = 0;
+	
+#	open my $dict_fh, '<', '/usr/share/dict/words'
+	open my $dict_fh, '<', $wordlist
+   	 or die "Can't read '/usr/share/dict/words': $!\n";
+	WORD:
+	while ( my $word = <$dict_fh> ) {
+ 	   chomp $word;
+	    next WORD if length $word != $desired_length;
+	    $selected_word = $word if rand ++$candidate_count < 1;
+	}
+	return $selected_word;
+}
+
 
 # list of domains below from Quantcast top million websites
 __DATA__
 google.com
 youtube.com
 facebook.com
+hackaday.com
+radar.weather.gov
+metafilter.com
+solen.info
 msn.com
 twitter.com
 bing.com

@@ -7,7 +7,7 @@ use Mojo::UserAgent;
 # Location on disk of the dictionary you want to use. By default use system words but I recommend,
 # top 20k most common google search words, https://github.com/first20hours/google-10000-english/blob/master/20k.txt
 my $wordlist;
-if (-e 20k.txt) {
+if (-f '20k.txt') {
 	$wordlist = '20k.txt';
 } else {
 	$wordlist = '/usr/share/dict/words';
@@ -69,7 +69,13 @@ my @google_strings = (
 	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&sourceid=chrome&es_sm=93&ie=UTF-8',
 	'search?client=ubuntu&channel=fs&q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=utf-8&oe=utf-8',
 	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=utf-8&oe=utf-8',
-	'webhp?sourceid=chrome-instant&ion=1&espv=2&es_th=1&ie=UTF-8&client=ubuntu#q=' . 'PLACEHOLDER' . '%20' . 'PLACEHOLDER' . '&es_th=1'
+	'webhp?sourceid=chrome-instant&ion=1&espv=2&es_th=1&ie=UTF-8&client=ubuntu#q=' . 'PLACEHOLDER' . '%20' . 'PLACEHOLDER' . '&es_th=1',
+	'search?q=' . 'PLACEHOLDER' . '%20' . 'PLACEHOLDER' . '&es_th=1&cad=h',
+	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=utf-8&oe=utf-8&aq=t&rls=org.mozilla:en-US:official&client=firefox-a',
+	'search?avantb=0&q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&gws_rd=ssl',
+	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=UTF-8&oe=UTF-8&hl=en&client=safari',
+	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&client=ms-android-google&sourceid=chrome-mobile&ie=UTF-8',
+	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=UTF-8&amp;client=ms-android-samsung'
 );
 
 ## list of words to search

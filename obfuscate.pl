@@ -89,6 +89,8 @@ if ($search_seperator eq "%20") {
 }
 # actually generate the list of plausible browser google search client/sourceid/encoding strings.
 my @google_strings = (
+	'search?q=' . $placeholders,
+	'search?hl=en&q=' . $placeholders,
 	'search?q=' . $placeholders . '&sourceid=chrome&es_sm=93&ie=UTF-8',
 	'search?client=ubuntu&channel=fs&q=' . $placeholders . '&ie=utf-8&oe=utf-8',
 	'search?q=' . $placeholders . '&ie=utf-8&oe=utf-8',
@@ -102,7 +104,14 @@ my @google_strings = (
 	'search?client=ms-rim&hl=es&q=' . $placeholders . '&ie=UTF-8&channel=browser',
 	'search?client=opera&q=' . $placeholders . '&sourceid=opera&ie=UTF-8&oe=UTF-8',
 	'search?client=kmeleon&q=' . $placeholders,
-	'search?client=aff-maxthon-maxthon4&channel=t27&q=' . $placeholders
+	'search?client=aff-maxthon-maxthon4&channel=t27&q=' . $placeholders,
+	'search?sourceid=navclient&ie=UTF-8&q=' . $placeholders,
+	'search?hl=en&q=' . $placeholders . '&btnG=Google+Search&aq=f&oq=',
+	'search?hl=en&rls=com.microsoft:*:IE-SearchBox&q=' . $placeholders . '&start=10&sa=N',
+	'search?hl=en&client=firefox-a&rls=org.mozilla%3Aen-US%3Aofficial&hs=rL&q=' . $placeholders . '&btnG=Search',
+	'search?hl=en&safe=active&rls=com.microsoft%3Aen-US&q=' . $placeholders,
+	'search?q=' . $placeholders . '&aqs=chrome..69i57j0l5.501j0j9&sourceid=chrome&es_sm=93&ie=UTF-8',
+	'search?hl=en&lr=&biw=1003&q=' . $placeholders
 );
 
 my @sites = <DATA>;
@@ -147,7 +156,8 @@ while (1) {
 			my $random_word = rand_word();
 			$actual_random_google_string =~ s/PLACEHOLDER/$random_word/;
 		}
-		my $get_request = "https://www.google.com/$actual_random_google_string";
+		# use http not https so the ISP can actually see the requests
+		my $get_request = "http://www.google.com/$actual_random_google_string";
 		say "Search request: $get_request\n";
 		my $tx = $ua->get($get_request);
 		if (my $res = $tx->success) {

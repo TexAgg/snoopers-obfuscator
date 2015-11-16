@@ -15,7 +15,7 @@ This script aims to provide a little security to internet users by:
 1. Obscuring your actual browsing habits by adding a constant 'random surfer' to your home
 2. Place more burdens on the practicality of the legislation by filling up logs with useless information
 
-It does this by constantly requesting random websites from Quantcast's [top websites list](https://www.quantcast.com/top-sites), or performing a Google search of 1 to 3 random words from the [20k most common google searches](https://github.com/first20hours/google-10000-english).
+It does this by constantly requesting random websites from Quantcast's [top websites list](https://www.quantcast.com/top-sites), or performing a Google search of 1 to 3 random words from the [20k most common](https://github.com/first20hours/google-10000-english) google searches.
 
 ## Install
 

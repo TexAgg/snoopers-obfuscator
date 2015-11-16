@@ -16,9 +16,7 @@ if (-f '20k.txt') {
 	$wordlist = '/usr/share/dict/words';
 } 
 
-# Fetch, but don't parse URLs ending in these. MIME types would be better, actual file detection best.
-# But it'd need another dependency like Mojolicious::Lite, LWP::Simple, or File::MMagic or something.
-# The method below fails if a dynamic language is used to serve the binaries indirectly.
+# fetch, but don't parse URLs ending in these. This is back-up for failed html/text content-type detection.
 my $badfiles = "pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|xls|jpg|jpeg|gif|png";
 
 # list of user agent strings
@@ -160,11 +158,11 @@ while (1) {
 			my $random_word = rand_word();
 			$actual_random_google_string =~ s/PLACEHOLDER/$random_word/;
 		}
-		# if http is used so ISP can log fake requests everything breaks and half the time no results return.
+		# if http is used so ISP can log requests everything breaks and half the time no results return.
 		# when they do it's *always* books.google.com or accounts.google.com. wtf?
 		# so, https for now. At least the results will contribute to the chaff if not the searches.
 		my $get_request = "https://www.google.com/$actual_random_google_string";
-		say "Search request: $get_request\n";
+		say "Search request: $get_request";
 		my $tx = $ua->get($get_request);
 		if (my $res = $tx->success) {
 			next unless is_html_text($res);
@@ -172,21 +170,21 @@ while (1) {
 			my $num_links = scalar @links;
 			$site = $links[int(rand($num_links - 1))]->{'href'};
 			# google is over-crawled because of a few links found on the search results pages. re-pick on detection.
-			if ($site =~ /https?:\/\/(\w+)\.google.com\/(.+)?/i) {
-				$site = $links[int(rand($num_links - 1))]->{'href'};
-			}
+			#if ($site =~ /https?:\/\/(\w+)\.google\.com\/(.+)?/i) {
+			#	say "Not google again!" if $debug;
+			#	$site = $links[int(rand($num_links - 1))]->{'href'};
+			#}
 			# re-pick if bad (non-html) or binary file type. should never get here if is_text() works.
-			if ($site =~ /.+\.($badfiles)$/i) {
-				$site = $links[int(rand($num_links - 1))]->{'href'};
-			}
+			#if ($site =~ /.+\.($badfiles)$/i) {
+			#	$site = $links[int(rand($num_links - 1))]->{'href'};
+			#}
 		} else {
 			next;
 		}
 	} else {
-		say "Getting site from list.\n" if $debug;
+		say "Getting site from the Quantcast list." if $debug;
 		my $num = int(rand($num_sites-1));
 		$site = $sites[$num];
-		say "Chosen site: $site" if $debug;
 		chomp($site);
 	}
 	say $site;
@@ -196,10 +194,8 @@ while (1) {
 
 	# skip parsing binary and non-html files for URLs since binary parsing can use 100% cpu forever 
 	# and failed dom look-ups in non-html text cause script exits
-	say "\nsite: $site\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
+	say "site: $site\nunparsable file detected, skipping." if ($site =~ /.+\.($badfiles)$/i);
 	next if ($site =~ /.+\.($badfiles)$/i);
-	#next if ($site =~ m#https?://www.google.com/intl/en/(.+)?#i);
-	#next if ($site =~ m#https?://books.google.com/(.+)?#i);
 
 	if (my $res = $tx->success) {
 		next unless is_html_text($res);
@@ -211,17 +207,22 @@ while (1) {
 		for (my $i=0; $i <= $rand_num_links; $i++) {
 			# choose a random link
 			my $rand_link = $links[int(rand($num_links - 1))];
+			# google is over-crawled because of a few links found on the search results pages. re-pick on detection.
+			#if ($rand_link->{'href'} =~ /https?:\/\/(\w+)\.google\.com\/(.+)?/i) {
+			#	say "Not google again!" if $debug;
+			#	$rand_link = $links[int(rand($num_links - 1))];
+			#}
 			# re-pick if bad (non-html) or binary file type.
-			if ($rand_link->{'href'} =~ /.+\.($badfiles)$/i) {
-				$rand_link->{'href'} = $links[int(rand($num_links - 1))]->{'href'};
-			}
+			#if ($rand_link->{'href'} =~ /.+\.($badfiles)$/i) {
+			#	$rand_link->{'href'} = $links[int(rand($num_links - 1))];
+			#}
 			say $rand_link->{'href'};
 
 			# fetch that random link
 			my $tx = $ua->get($rand_link->{'href'});
 			# skip parsing binary and non-html files for URLs since binary parsing can use 100% cpu forever 
 			# and failed dom look-ups in non-html text cause script exits
-			say "\nsite: " . $rand_link->{'href'} . "\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
+			say "site: " . $rand_link->{'href'} . "\nunparsable file detected, skipping." if ($site =~ /.+\.($badfiles)$/i);
 			next if ($rand_link->{'href'} =~ /.+\.($badfiles)$/i);
 
 			# recurse
@@ -269,19 +270,15 @@ sub rand_word {
 	return $selected_word;
 }
 
-
 sub is_html_text {
 	my $result = shift;
-	#say Dumper ($result->content->headers=>headers=>'content-type');
-	#say Dumper ($result->content->headers->header('content-type'));  
-	#say scalar $result->content->headers->header('content-type');  
 	my ($content_type, $encoding) = split(/;/, scalar $result->headers->header('content-type'));
 	if ($content_type eq 'text/html') {
-		say "File is html text.\n" if $debug;
+		say "File is html text." if $debug;
 		return 1;
 	} else {
-		say "File is not html text.\n" if $debug;
-		say "content-type: $content_type\n" if $debug;
+		say "File is not html text." if $debug;
+		say "content-type: $content_type" if $debug;
 		return 0;	
 	}
 }

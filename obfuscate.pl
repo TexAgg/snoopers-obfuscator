@@ -4,8 +4,9 @@ use warnings;
 use Modern::Perl;
 use Mojo::UserAgent;
 
-# Location on disk of the dictionary you want to use. By default use system words but I recommend,
+# wordlist/dictionary to use for random search terms
 # top 20k most common google search words, https://github.com/first20hours/google-10000-english/blob/master/20k.txt
+# 20k.txt is included in my github fork
 my $wordlist;
 if (-f '20k.txt') {
 	$wordlist = '20k.txt';
@@ -13,10 +14,12 @@ if (-f '20k.txt') {
 	$wordlist = '/usr/share/dict/words';
 } 
 
-# fetch, but don't parse these
+# Fetch, but don't parse URLs ending in these. MIME types would be better but it'd
+# need another dependency like Mojolicious::Lite "Formats" or something. The method below
+# fails if a dynamic language is used to serve the binaries indirectly.
 my $badfiles = "pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|jpg|jpeg|gif|png";
 
-# List of user agent strings
+# list of user agent strings
 my @ua_strings = (
 	'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0',
 	'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:39.0) Gecko/20100101 Firefox/39.0',
@@ -46,40 +49,61 @@ my @ua_strings = (
 );
 my $num_ua = scalar @ua_strings;
 
-# List of header accept strings
+## I could really use submission of other browsers' HTTP headers. You can check yours with this perl/tcpdump one-liner:
+## sudo stdbuf -oL -eL /usr/sbin/tcpdump -A -s 10240 "tcp port 80 and (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)" | egrep -a --line-buffered ".+(GET |HTTP\/|POST )|^[A-Za-z0-9-]+: " | perl -nle 'BEGIN{$|=1} { s/.*?(GET |HTTP\/[0-9.]* |POST )/\n$1/g; print }'
+
+# list of header accept strings
 my @ha_strings = (
 	'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
 );
 my $num_ha = scalar @ha_strings;
-# List of header language accept strings
+# list of header language accept strings
 my @la_strings = (
 	'Accept-Language: en-US,en;q=0.5'
 );
 my $num_la = scalar @la_strings;
-# List of header content-type strings
+# list of header content-type strings
 my @ct_strings = (
 	'Content-Type: application/x-www-form-urlencoded'
 );
 my $num_ct = scalar @ct_strings;
 
-
-# List of plausible google search client/sourceid/encoding strings
-# ... that webhp? one with #q= and %20 instead of + really makes templating hard.
+### generate a random amount of template/placeholder words for google search strings. 
+# pick search term seperator. Use + most (4/5) of the time but 1/5 of the time (5,10) use %20
+my $search_seperator;
+if ((int(rand(10))%5) == 0) {
+	$search_seperator = "%20";
+} else {
+	$search_seperator = "+";
+}
+# 1 to 3 placeholder search term templates.
+my $num_search_words = int(rand(3)) + 1;
+my $placeholders = "PLACEHOLDER$search_seperator"x$num_search_words;
+# remove the final trailing search term seperator characters in an ugly way.
+if ($search_seperator eq "%20") {
+	chop($placeholders);
+	chop($placeholders);
+	chop($placeholders);
+} else {
+	chop($placeholders);
+}
+# actually generate the list of plausible browser google search client/sourceid/encoding strings.
 my @google_strings = (
-	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&sourceid=chrome&es_sm=93&ie=UTF-8',
-	'search?client=ubuntu&channel=fs&q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=utf-8&oe=utf-8',
-	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=utf-8&oe=utf-8',
-	'webhp?sourceid=chrome-instant&ion=1&espv=2&es_th=1&ie=UTF-8&client=ubuntu#q=' . 'PLACEHOLDER' . '%20' . 'PLACEHOLDER' . '&es_th=1',
-	'search?q=' . 'PLACEHOLDER' . '%20' . 'PLACEHOLDER' . '&es_th=1&cad=h',
-	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=utf-8&oe=utf-8&aq=t&rls=org.mozilla:en-US:official&client=firefox-a',
-	'search?avantb=0&q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&gws_rd=ssl',
-	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=UTF-8&oe=UTF-8&hl=en&client=safari',
-	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&client=ms-android-google&sourceid=chrome-mobile&ie=UTF-8',
-	'search?q=' . 'PLACEHOLDER' . "+" . 'PLACEHOLDER' . '&ie=UTF-8&amp;client=ms-android-samsung'
+	'search?q=' . $placeholders . '&sourceid=chrome&es_sm=93&ie=UTF-8',
+	'search?client=ubuntu&channel=fs&q=' . $placeholders . '&ie=utf-8&oe=utf-8',
+	'search?q=' . $placeholders . '&ie=utf-8&oe=utf-8',
+	'search?sourceid=chrome-instant&ion=1&espv=2&es_th=1&ie=UTF-8&client=ubuntu&q=' . $placeholders . '&es_th=1',
+	'search?q=' . $placeholders . '&es_th=1&cad=h',
+	'search?q=' . $placeholders . '&ie=utf-8&oe=utf-8&aq=t&rls=org.mozilla:en-US:official&client=firefox-a',
+	'search?avantb=0&q=' . $placeholders,
+	'search?q=' . $placeholders . '&ie=UTF-8&oe=UTF-8&hl=en&client=safari',
+	'search?q=' . $placeholders . '&client=ms-android-google&sourceid=chrome-mobile&ie=UTF-8',
+	'search?q=' . $placeholders . '&ie=UTF-8&amp;client=ms-android-samsung',
+	'search?client=ms-rim&hl=es&q=' . $placeholders . '&ie=UTF-8&channel=browser',
+	'search?client=opera&q=' . $placeholders . '&sourceid=opera&ie=UTF-8&oe=UTF-8',
+	'search?client=kmeleon&q=' . $placeholders,
+	'search?client=aff-maxthon-maxthon4&channel=t27&q=' . $placeholders
 );
-
-## list of words to search
-#my @words = ("news", "uk news", "surveillance", "weird news", "celebrity news", "world news", "gchq", "nsa", "tv news", "facebook", "twitter", "snowden", "us news");
 
 my @sites = <DATA>;
 my $num_sites = scalar @sites;
@@ -99,7 +123,6 @@ while (1) {
 	# ref: https://msoulier.wordpress.com/2012/08/06/custom-request-headers-in-mojo/
 	$ua->once(start => sub {
 		my ($ua, $tx) = @_;
-	
 		# Accept:
 		my $rand_ha = int(rand($num_ha-1));
 		$tx->req->headers->header('Accept' => "$ha_strings[$rand_ha]");
@@ -118,7 +141,7 @@ while (1) {
 		my $num_google = scalar @google_strings;
 		my $rand_google = int(rand($num_google));
 		my $actual_random_google_string = $google_strings[$rand_google];
-		# count instead of hardcode two in case I want to add random number of random words later
+		# count placeholders in string, replace each with a new random word from the wordlist
 		my $count = () = $actual_random_google_string =~ /PLACEHOLDER/g;
 		for ($count; $count > 0; $count--) {
 			my $random_word = rand_word();
@@ -127,9 +150,6 @@ while (1) {
 		my $get_request = "https://www.google.com/$actual_random_google_string";
 		say "Search request: $get_request\n";
 		my $tx = $ua->get($get_request);
-#		my $tx = $ua->get('https://www.google.co.uk/search?q=' . $words[rand(int(scalar(@words -1)))] . " " . rand_word());
-#		my $tx = $ua->get('https://www.google.co.uk/search?q=' . rand_word() . " " . rand_word());
-#		my $tx = $ua->get('https://www.google.com/search?client=ubuntu&channel=fs&q=' . rand_word() . "+" . rand_word() . '&ie=utf-8&oe=utf-8');
 		if (my $res = $tx->success) {
 			my @links = $res->dom->find('h3.r a[href^="http"]')->each;
 			my $num_links = scalar @links;
@@ -147,8 +167,9 @@ while (1) {
 	# fetch random site
 	my $tx = $ua->get($site);
 
-	# but skip parsing pdf or other binary files for URLs since it uses 100% cpu forever and fails
-	print "\nsite: $site\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
+	# skip parsing binary and non-html files for URLs since binary parsing can use 100% cpu forever 
+	# and failed dom look-ups in non-html text cause script exits
+	say "\nsite: $site\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
 	next if ($site =~ /.+\.($badfiles)$/i);
 
 	if (my $res = $tx->success) {
@@ -161,11 +182,13 @@ while (1) {
 			# choose a random link
 			my $rand_link = $links[int(rand($num_links - 1))];
 			say $rand_link->{'href'};
+			# google is over-crawled. skip google domain links.
+			next if $rand_link->{'href'} =~ /https?:\/\/\w+\.google\.com/;
 			# fetch that random link
 			my $tx = $ua->get($rand_link->{'href'});
-
-			# but skip parsing pdf or other binary files for URLs since it uses 100% cpu forever and fails
-			print "\nsite: " . $rand_link->{'href'} . "\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
+			# skip parsing binary and non-html files for URLs since binary parsing can use 100% cpu forever 
+			# and failed dom look-ups in non-html text cause script exits
+			say "\nsite: " . $rand_link->{'href'} . "\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
 			next if ($rand_link->{'href'} =~ /.+\.($badfiles)$/i);
 
 			# recurse
@@ -201,7 +224,6 @@ sub rand_word {
 	my $selected_word;
 	my $candidate_count = 0;
 	
-#	open my $dict_fh, '<', '/usr/share/dict/words'
 	open my $dict_fh, '<', $wordlist
    	 or die "Can't read '/usr/share/dict/words': $!\n";
 	WORD:
@@ -219,10 +241,6 @@ __DATA__
 google.com
 youtube.com
 facebook.com
-hackaday.com
-radar.weather.gov
-metafilter.com
-solen.info
 msn.com
 twitter.com
 bing.com

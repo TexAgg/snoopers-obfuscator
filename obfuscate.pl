@@ -158,13 +158,17 @@ while (1) {
 			$actual_random_google_string =~ s/PLACEHOLDER/$random_word/;
 		}
 		# use http not https so the ISP can actually see the requests
-		my $get_request = "http://www.google.com/$actual_random_google_string";
+		my $get_request = "https://www.google.com/$actual_random_google_string";
 		say "Search request: $get_request\n";
 		my $tx = $ua->get($get_request);
 		if (my $res = $tx->success) {
 			my @links = $res->dom->find('h3.r a[href^="http"]')->each;
 			my $num_links = scalar @links;
 			$site = $links[int(rand($num_links - 1))]->{'href'};
+			# google is over-crawled because of a few links found on the search results pages. re-pick on detection.
+			#if ($site =~ /https?:\/\/(\w+)\.google.com\/(.+)?/i) {
+			#	$site = $links[int(rand($num_links - 1))]->{'href'};
+			#}
 		} else {
 			next;
 		}
@@ -182,6 +186,8 @@ while (1) {
 	# and failed dom look-ups in non-html text cause script exits
 	say "\nsite: $site\nunparsable file detected, skipping.\n" if ($site =~ /.+\.($badfiles)$/i);
 	next if ($site =~ /.+\.($badfiles)$/i);
+	#next if ($site =~ m#https?://www.google.com/intl/en/(.+)?#i);
+	#next if ($site =~ m#https?://books.google.com/(.+)?#i);
 
 	if (my $res = $tx->success) {
 		# grab array of valid links on the page
@@ -193,8 +199,7 @@ while (1) {
 			# choose a random link
 			my $rand_link = $links[int(rand($num_links - 1))];
 			say $rand_link->{'href'};
-			# google is over-crawled because of a few links found on the search results pages. skip the worst.
-			next if $rand_link->{'href'} =~ m#https://www.google.com/intl/en/#i;
+
 			# fetch that random link
 			my $tx = $ua->get($rand_link->{'href'});
 			# skip parsing binary and non-html files for URLs since binary parsing can use 100% cpu forever 

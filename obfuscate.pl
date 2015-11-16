@@ -4,6 +4,8 @@ use warnings;
 use Modern::Perl;
 use Mojo::UserAgent;
 
+my $debug = 0;
+
 # wordlist/dictionary to use for random search terms
 # top 20k most common google search words, https://github.com/first20hours/google-10000-english/blob/master/20k.txt
 # 20k.txt is included in my github fork
@@ -14,9 +16,9 @@ if (-f '20k.txt') {
 	$wordlist = '/usr/share/dict/words';
 } 
 
-# Fetch, but don't parse URLs ending in these. MIME types would be better but it'd
-# need another dependency like Mojolicious::Lite "Formats" or something. The method below
-# fails if a dynamic language is used to serve the binaries indirectly.
+# Fetch, but don't parse URLs ending in these. MIME types would be better, actual file detection best.
+# But it'd need another dependency like Mojolicious::Lite, LWP::Simple, or File::MMagic or something.
+# The method below fails if a dynamic language is used to serve the binaries indirectly.
 my $badfiles = "pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|xls|jpg|jpeg|gif|png";
 
 # list of user agent strings
@@ -76,7 +78,8 @@ if ((int(rand(10))%5) == 0) {
 } else {
 	$search_seperator = "+";
 }
-# 1 to 3 placeholder search term templates.
+# 2 to 4 placeholder search term templates. If only one word is searched dictionary sites are
+# picked with too high of a probability.
 my $num_search_words = int(rand(2)) + 2;
 my $placeholders = "PLACEHOLDER$search_seperator"x$num_search_words;
 # remove the final trailing search term seperator characters in an ugly way.
@@ -164,6 +167,7 @@ while (1) {
 		say "Search request: $get_request\n";
 		my $tx = $ua->get($get_request);
 		if (my $res = $tx->success) {
+			next unless is_html_text($res);
 			my @links = $res->dom->find('h3.r a[href^="http"]')->each;
 			my $num_links = scalar @links;
 			$site = $links[int(rand($num_links - 1))]->{'href'};
@@ -171,7 +175,7 @@ while (1) {
 			if ($site =~ /https?:\/\/(\w+)\.google.com\/(.+)?/i) {
 				$site = $links[int(rand($num_links - 1))]->{'href'};
 			}
-			# re-pick if bad (non-html) or binary file type.
+			# re-pick if bad (non-html) or binary file type. should never get here if is_text() works.
 			if ($site =~ /.+\.($badfiles)$/i) {
 				$site = $links[int(rand($num_links - 1))]->{'href'};
 			}
@@ -179,8 +183,10 @@ while (1) {
 			next;
 		}
 	} else {
+		say "Getting site from list.\n" if $debug;
 		my $num = int(rand($num_sites-1));
-		my $site = $sites[$num];
+		$site = $sites[$num];
+		say "Chosen site: $site" if $debug;
 		chomp($site);
 	}
 	say $site;
@@ -196,6 +202,7 @@ while (1) {
 	#next if ($site =~ m#https?://books.google.com/(.+)?#i);
 
 	if (my $res = $tx->success) {
+		next unless is_html_text($res);
 		# grab array of valid links on the page
 		my @links = $res->dom->find('a[href^="http"]')->each;
 		my $num_links = scalar @links;
@@ -219,6 +226,7 @@ while (1) {
 
 			# recurse
 			if (my $res = $tx->success) {
+				next unless is_html_text($res);
 				say $res->dom->at('title')->text; 
 				# grab array of valid links on the page
 				my @links = $res->dom->find('a[href^="http"]')->each;
@@ -251,7 +259,7 @@ sub rand_word {
 	my $candidate_count = 0;
 	
 	open my $dict_fh, '<', $wordlist
-   	 or die "Can't read '/usr/share/dict/words': $!\n";
+   	 or die "Can't read '$wordlist': $!\n";
 	WORD:
 	while ( my $word = <$dict_fh> ) {
  	   chomp $word;
@@ -261,6 +269,22 @@ sub rand_word {
 	return $selected_word;
 }
 
+
+sub is_html_text {
+	my $result = shift;
+	#say Dumper ($result->content->headers=>headers=>'content-type');
+	#say Dumper ($result->content->headers->header('content-type'));  
+	#say scalar $result->content->headers->header('content-type');  
+	my ($content_type, $encoding) = split(/;/, scalar $result->headers->header('content-type'));
+	if ($content_type eq 'text/html') {
+		say "File is html text.\n" if $debug;
+		return 1;
+	} else {
+		say "File is not html text.\n" if $debug;
+		say "content-type: $content_type\n" if $debug;
+		return 0;	
+	}
+}
 
 # list of domains below from Quantcast top million websites
 __DATA__

@@ -17,7 +17,7 @@ if (-f '20k.txt') {
 # Fetch, but don't parse URLs ending in these. MIME types would be better but it'd
 # need another dependency like Mojolicious::Lite "Formats" or something. The method below
 # fails if a dynamic language is used to serve the binaries indirectly.
-my $badfiles = "pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|jpg|jpeg|gif|png";
+my $badfiles = "pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|xls|jpg|jpeg|gif|png";
 
 # list of user agent strings
 my @ua_strings = (
@@ -77,7 +77,7 @@ if ((int(rand(10))%5) == 0) {
 	$search_seperator = "+";
 }
 # 1 to 3 placeholder search term templates.
-my $num_search_words = int(rand(3)) + 1;
+my $num_search_words = int(rand(2)) + 2;
 my $placeholders = "PLACEHOLDER$search_seperator"x$num_search_words;
 # remove the final trailing search term seperator characters in an ugly way.
 if ($search_seperator eq "%20") {
@@ -157,7 +157,9 @@ while (1) {
 			my $random_word = rand_word();
 			$actual_random_google_string =~ s/PLACEHOLDER/$random_word/;
 		}
-		# use http not https so the ISP can actually see the requests
+		# if http is used so ISP can log fake requests everything breaks and half the time no results return.
+		# when they do it's *always* books.google.com or accounts.google.com. wtf?
+		# so, https for now. At least the results will contribute to the chaff if not the searches.
 		my $get_request = "https://www.google.com/$actual_random_google_string";
 		say "Search request: $get_request\n";
 		my $tx = $ua->get($get_request);
@@ -166,9 +168,13 @@ while (1) {
 			my $num_links = scalar @links;
 			$site = $links[int(rand($num_links - 1))]->{'href'};
 			# google is over-crawled because of a few links found on the search results pages. re-pick on detection.
-			#if ($site =~ /https?:\/\/(\w+)\.google.com\/(.+)?/i) {
-			#	$site = $links[int(rand($num_links - 1))]->{'href'};
-			#}
+			if ($site =~ /https?:\/\/(\w+)\.google.com\/(.+)?/i) {
+				$site = $links[int(rand($num_links - 1))]->{'href'};
+			}
+			# re-pick if bad (non-html) or binary file type.
+			if ($site =~ /.+\.($badfiles)$/i) {
+				$site = $links[int(rand($num_links - 1))]->{'href'};
+			}
 		} else {
 			next;
 		}
@@ -198,6 +204,10 @@ while (1) {
 		for (my $i=0; $i <= $rand_num_links; $i++) {
 			# choose a random link
 			my $rand_link = $links[int(rand($num_links - 1))];
+			# re-pick if bad (non-html) or binary file type.
+			if ($rand_link->{'href'} =~ /.+\.($badfiles)$/i) {
+				$rand_link->{'href'} = $links[int(rand($num_links - 1))]->{'href'};
+			}
 			say $rand_link->{'href'};
 
 			# fetch that random link
@@ -209,7 +219,7 @@ while (1) {
 
 			# recurse
 			if (my $res = $tx->success) {
-				say $res->dom->at('title')->text;
+				say $res->dom->at('title')->text; 
 				# grab array of valid links on the page
 				my @links = $res->dom->find('a[href^="http"]')->each;
 				my $num_links = scalar @links;

@@ -109,6 +109,7 @@ my @google_strings = (
 	'search?hl=en&q=' . $placeholders . '&btnG=Google+Search&aq=f&oq=',
 	'search?hl=en&rls=com.microsoft:*:IE-SearchBox&q=' . $placeholders . '&start=10&sa=N',
 	'search?hl=en&client=firefox-a&rls=org.mozilla%3Aen-US%3Aofficial&hs=rL&q=' . $placeholders . '&btnG=Search',
+	'search?hl=en&q=' . $placeholders,
 	'search?hl=en&safe=active&rls=com.microsoft%3Aen-US&q=' . $placeholders,
 	'search?q=' . $placeholders . '&aqs=chrome..69i57j0l5.501j0j9&sourceid=chrome&es_sm=93&ie=UTF-8',
 	'search?hl=en&lr=&biw=1003&q=' . $placeholders
@@ -192,8 +193,8 @@ while (1) {
 			# choose a random link
 			my $rand_link = $links[int(rand($num_links - 1))];
 			say $rand_link->{'href'};
-			# google is over-crawled. skip google domain links.
-			next if $rand_link->{'href'} =~ /https?:\/\/\w+\.google\.com/;
+			# google is over-crawled because of a few links found on the search results pages. skip the worst.
+			next if $rand_link->{'href'} =~ m#https://www.google.com/intl/en/#i;
 			# fetch that random link
 			my $tx = $ua->get($rand_link->{'href'});
 			# skip parsing binary and non-html files for URLs since binary parsing can use 100% cpu forever 

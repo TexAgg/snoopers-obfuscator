@@ -4,7 +4,7 @@ use warnings;
 use Modern::Perl;
 use Mojo::UserAgent;
 
-my $debug = 0;
+my $debug = 1;
 
 # wordlist/dictionary to use for random search terms
 # top 20k most common google search words, https://github.com/first20hours/google-10000-english/blob/master/20k.txt
@@ -78,7 +78,7 @@ if ((int(rand(10))%5) == 0) {
 }
 # 2 to 4 placeholder search term templates. If only one word is searched dictionary sites are
 # picked with too high of a probability.
-my $num_search_words = int(rand(2)) + 2;
+my $num_search_words = int(rand(2)) + 1;
 my $placeholders = "PLACEHOLDER$search_seperator"x$num_search_words;
 # remove the final trailing search term seperator characters in an ugly way.
 if ($search_seperator eq "%20") {
@@ -159,7 +159,7 @@ while (1) {
 			$actual_random_google_string =~ s/PLACEHOLDER/$random_word/;
 		}
 		# if http is used so ISP can log requests everything breaks and half the time no results return.
-		# when they do it's *always* books.google.com or accounts.google.com. wtf?
+		# when they do it's *always* books.google.com or accounts.google.com. never actual search results.
 		# so, https for now. At least the results will contribute to the chaff if not the searches.
 		my $get_request = "https://www.google.com/$actual_random_google_string";
 		say "Search request: $get_request";
@@ -169,15 +169,10 @@ while (1) {
 			my @links = $res->dom->find('h3.r a[href^="http"]')->each;
 			my $num_links = scalar @links;
 			$site = $links[int(rand($num_links - 1))]->{'href'};
-			# google is over-crawled because of a few links found on the search results pages. re-pick on detection.
-			#if ($site =~ /https?:\/\/(\w+)\.google\.com\/(.+)?/i) {
-			#	say "Not google again!" if $debug;
-			#	$site = $links[int(rand($num_links - 1))]->{'href'};
-			#}
-			# re-pick if bad (non-html) or binary file type. should never get here if is_text() works.
-			#if ($site =~ /.+\.($badfiles)$/i) {
-			#	$site = $links[int(rand($num_links - 1))]->{'href'};
-			#}
+
+			$site = check_and_replace_bad_urls($site,'https?:\/\/(books|maps)\.google\.com\/.+',\@links,'google only giving back javascript, no a href. fall back to random from quantcast list.');
+			$site = check_and_replace_bad_urls($site,".+\.($badfiles)\$",\@links,'Only bad file types. Falling back to random from quantcast list.');
+
 		} else {
 			next;
 		}
@@ -207,15 +202,10 @@ while (1) {
 		for (my $i=0; $i <= $rand_num_links; $i++) {
 			# choose a random link
 			my $rand_link = $links[int(rand($num_links - 1))];
-			# google is over-crawled because of a few links found on the search results pages. re-pick on detection.
-			#if ($rand_link->{'href'} =~ /https?:\/\/(\w+)\.google\.com\/(.+)?/i) {
-			#	say "Not google again!" if $debug;
-			#	$rand_link = $links[int(rand($num_links - 1))];
-			#}
-			# re-pick if bad (non-html) or binary file type.
-			#if ($rand_link->{'href'} =~ /.+\.($badfiles)$/i) {
-			#	$rand_link->{'href'} = $links[int(rand($num_links - 1))];
-			#}
+
+			$rand_link->{'href'} = check_and_replace_bad_urls($site,'https?:\/\/(books|maps)\.google\.com\/.+',\@links,'google only giving back javascript, no a href. fall back to random from quantcast list.');
+			$rand_link->{'href'} = check_and_replace_bad_urls($rand_link->{'href'},".+\.($badfiles)\$",\@links,'Only bad file types. Falling back to random from quantcast list.');
+
 			say $rand_link->{'href'};
 
 			# fetch that random link
@@ -227,7 +217,8 @@ while (1) {
 
 			# recurse
 			if (my $res = $tx->success) {
-				next unless is_html_text($res);
+				next unless is_html_text($res); # script will parse "forever" using 100% CPU if binary file of large size
+				next unless $res->dom->at('title'); # script will exit if ->text can't be called because no title exists
 				say $res->dom->at('title')->text; 
 				# grab array of valid links on the page
 				my @links = $res->dom->find('a[href^="http"]')->each;
@@ -254,6 +245,11 @@ while (1) {
 }
 
 sub rand_word {
+	# todo: take a length multiplier scalar with shift as argument.
+	#my $multiplier = 1;
+	#$multiplier = shift if @_;
+	#my $rand_length = int(rand(6*$multiplier));
+	
 	my $rand_length = int(rand(6));
 	my $desired_length = 3 + $rand_length;
 	my $selected_word;
@@ -281,6 +277,29 @@ sub is_html_text {
 		say "content-type: $content_type" if $debug;
 		return 0;	
 	}
+}
+
+sub check_and_replace_bad_urls {
+	my ($url, $regex, $links_array_ref, $print_message) = @_;
+	my @links = @{ $links_array_ref };  
+	my $num_links = scalar @links;
+
+	#say "Debug. url: $url, regex: $regex" if $debug;
+
+	my $loopcount = 0;
+	while ($url =~ /$regex/i) {
+		# randomly pick another url 
+		say "Bad link. Re-picking." if $debug;
+		$url = $links[int(rand($num_links - 1))]->{'href'};
+		# this falls back to the quantcast list of sites for a url if the approximate majority of random urls in list matched bad regex
+		if ($loopcount >= ($num_links - 1)) {
+			say "$print_message" if $debug;
+			my $num = int(rand($num_sites-1));
+			$url = chomp($sites[$num]);
+		}
+		$loopcount++;
+	}
+	return $url;
 }
 
 # list of domains below from Quantcast top million websites

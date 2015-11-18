@@ -78,7 +78,7 @@ if ((int(rand(10))%5) == 0) {
 }
 # 2 to 4 placeholder search term templates. If only one word is searched dictionary sites are
 # picked with too high of a probability.
-my $num_search_words = int(rand(2)) + 1;
+my $num_search_words = int(rand(3)) + 1;
 my $placeholders = "PLACEHOLDER$search_seperator"x$num_search_words;
 # remove the final trailing search term seperator characters in an ugly way.
 if ($search_seperator eq "%20") {

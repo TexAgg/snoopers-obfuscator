@@ -18,11 +18,13 @@ if (-f '20k.txt') {
 
 # fetch, but don't parse URLs ending in these. This is back-up for failed html/text content-type detection.
 my $badfiles = '.+\\.(pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|css|xls|jpg|jpeg|gif|png)\\$';
+# fetch, but don't parse URLs ending in these. They are annoyingly self referential and only link to themselves.
 my $badgoogleurls = 'https?:\/\/(books|maps|accounts)\.google\.com\/.+';
-my $baddictionaryurls = 'https?:\/\/(\w+\.)?(merriam-webster|wordcentral|dictionary|reference|macmillandictionary|wiktionary|thefreedictionary|thesaurus|wordreference|businessdictionary)\.com.+';
+my $baddictionaryurls = 'https?:\/\/(\w+\.)?(merriam-webster|wordcentral|dictionary|reference|macmillandictionary|wiktionary|thefreedictionary|thesaurus|wordreference|businessdictionary)\.com.+'; # todo
 
 # list of user agent strings
 my @ua_strings = (
+	'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:42.0) Gecko/20100101 Firefox/42.0',
 	'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:41.0) Gecko/20100101 Firefox/41.0',
 	'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:39.0) Gecko/20100101 Firefox/39.0',
 	'Mozilla/5.0 (Windows NT 6.3; WOW64; rv:39.0) Gecko/20100101 Firefox/39.0',
@@ -35,6 +37,7 @@ my @ua_strings = (
 	'Mozilla/5.0 (X11; Linux x86_64; rv:39.0) Gecko/20100101 Firefox/39.0',
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.6; rv:39.0) Gecko/20100101 Firefox/39.0',
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_4) AppleWebKit/600.7.12 (KHTML, like Gecko) Version/8.0.7 Safari/600.7.12',
+	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.152 Safari/537.36',
 	'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.134 Safari/537.36',
 	'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.125 Safari/537.36',
 	'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.130 Safari/537.36',
@@ -48,6 +51,17 @@ my @ua_strings = (
 	'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.130 Safari/537.36',
 	'Mozilla/5.0 (Windows NT 6.3; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.107 Safari/537.36',
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/44.0.2403.89 Safari/537.36',
+	'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.0; Trident/5.0;  Trident/5.0)',
+	'Mozilla/5.0 (Windows NT 6.1; Trident/7.0; rv:11.0) like Gecko',
+	'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36 OPR/26.0.1656.60',
+	'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Dragon/36.1.1.21 Chrome/36.0.1985.97 Safari/537.36',
+	'Mozilla/5.0 (X11; Linux x86_64; rv:25.7) Gecko/20151013 Firefox/31.9 PaleMoon/25.7.3',
+	'Opera/9.80 (Windows NT 6.2; Win64; x64) Presto/2.12.388 Version/12.16',
+	'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:34.0) Gecko/20100101 Firefox/34.0',
+	'Mozilla/5.0 (Windows; U; MSIE 9.0; Windows NT 9.0; en-US)',
+	'Mozilla/5.0 (iPhone; CPU iPhone OS 8_3 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Version/8.0 Mobile/12F70 Safari/600.1.4',
+	'Mozilla/5.0 (Windows NT 5.1; rv:35.0) Gecko/20100101 Firefox/35.0',
+	'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Maxthon/4.4.4.600 Chrome/30.0.1599.101 Safari/537.36'
 );
 my $num_ua = scalar @ua_strings;
 
@@ -56,12 +70,26 @@ my $num_ua = scalar @ua_strings;
 
 # list of header accept strings
 my @ha_strings = (
-	'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+	'Accept: */*',
+	'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+	'Accept: text/html, application/xml;q=0.9, application/xhtml+xml, image/png, image/webp, image/jpeg, image/gif, image/x-xbitmap, */*;q=0.1',
+	#'Accept: application/voicexml+xml, application/srgs+xml, application/srgs, text/x-vxml, */*'
+	#'Accept: text/html,text/plain,text/xml,text/*,application/xml,application/xhtml+xml,application/rss+xml,application/atom+xml,application/rdf+xml,application/php,application/x-php,application/x-httpd-php',
+	'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8,application/json',
+	'Accept: text/html, image/gif, image/jpeg, *; q=.2, */*; q=.2',
+	'Accept: text/html, application/xml, text/xml'
+
 );
 my $num_ha = scalar @ha_strings;
 # list of header language accept strings
 my @la_strings = (
-	'Accept-Language: en-US,en;q=0.5'
+	'Accept-Language: en-US,en;q=0.5',
+	'Accept-Language: en-US,en;q=0.8',
+	'Accept-Language: en-US,en;q=0.8,sq;q=0.6',
+	'Accept-Language: en,en-US;q=0.9,ja;q=0.8,fr;q=0.7,de;q=0.6,es;q=0.5,it;q=0.4,pt;q=0.3,pt-PT;q=0.2,nl;q=0.1',
+	'Accept-Language: en',
+	'Accept-Language: en-US',
+	'Accept-Language: en-US,*'
 );
 my $num_la = scalar @la_strings;
 # list of header content-type strings
@@ -200,7 +228,7 @@ while (1) {
 		for (my $i=0; $i <= $rand_num_links; $i++) {
 			# choose a random link
 			my $rand_link = $links[int(rand($num_links - 1))];
-			$rand_link->{'href'} = check_and_replace_bad_urls($rand_link->{'href'},'https?:\/\/(books|maps)\.google\.com\/.+',\@links,'google only giving back javascript, no a href. fall back to random from quantcast list.');
+			$rand_link->{'href'} = check_and_replace_bad_urls($rand_link->{'href'},$badgoogleurls,\@links,'google only giving back javascript, no a href. fall back to random from quantcast list.');
 			$rand_link->{'href'} = check_and_replace_bad_urls($rand_link->{'href'},$badfiles,\@links,'Only bad file types. Falling back to random from quantcast list.');
 
 			say $rand_link->{'href'};

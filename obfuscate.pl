@@ -4,7 +4,7 @@ use warnings;
 use Modern::Perl;
 use Mojo::UserAgent;
 
-my $debug = 1;
+my $debug = 0;
 
 # wordlist/dictionary to use for random search terms
 # top 20k most common google search words, https://github.com/first20hours/google-10000-english/blob/master/20k.txt
@@ -17,7 +17,9 @@ if (-f '20k.txt') {
 } 
 
 # fetch, but don't parse URLs ending in these. This is back-up for failed html/text content-type detection.
-my $badfiles = "pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|xls|jpg|jpeg|gif|png";
+my $badfiles = '.+\\.(pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|css|xls|jpg|jpeg|gif|png)\\$';
+my $badgoogleurls = 'https?:\/\/(books|maps|accounts)\.google\.com\/.+';
+my $baddictionaryurls = 'https?:\/\/(\w+\.)?(merriam-webster|wordcentral|dictionary|reference|macmillandictionary|wiktionary|thefreedictionary|thesaurus|wordreference|businessdictionary)\.com.+';
 
 # list of user agent strings
 my @ua_strings = (
@@ -69,22 +71,20 @@ my @ct_strings = (
 my $num_ct = scalar @ct_strings;
 
 ### generate a random amount of template/placeholder words for google search strings. 
-# pick search term seperator. Use + most (4/5) of the time but 1/5 of the time (5,10) use %20
+# pick search term seperator. Use + most of the time but use %20 occasionally.
 my $search_seperator;
 if ((int(rand(10))%5) == 0) {
 	$search_seperator = "%20";
 } else {
 	$search_seperator = "+";
 }
-# 2 to 4 placeholder search term templates. If only one word is searched dictionary sites are
+# 1 to 4 placeholder search term templates. If only one word is searched dictionary sites are
 # picked with too high of a probability.
 my $num_search_words = int(rand(3)) + 1;
 my $placeholders = "PLACEHOLDER$search_seperator"x$num_search_words;
 # remove the final trailing search term seperator characters in an ugly way.
 if ($search_seperator eq "%20") {
-	chop($placeholders);
-	chop($placeholders);
-	chop($placeholders);
+	$placeholders = substr($placeholders, 0, -3);
 } else {
 	chop($placeholders);
 }
@@ -98,13 +98,13 @@ my @google_strings = (
 	'search?sourceid=chrome-instant&ion=1&espv=2&es_th=1&ie=UTF-8&client=ubuntu&q=' . $placeholders . '&es_th=1',
 	'search?q=' . $placeholders . '&es_th=1&cad=h',
 	'search?q=' . $placeholders . '&ie=utf-8&oe=utf-8&aq=t&rls=org.mozilla:en-US:official&client=firefox-a',
-	'search?avantb=0&q=' . $placeholders,
+	'search?avantb=0&q=' . $placeholders . '&gws_rd=ssl',
 	'search?q=' . $placeholders . '&ie=UTF-8&oe=UTF-8&hl=en&client=safari',
 	'search?q=' . $placeholders . '&client=ms-android-google&sourceid=chrome-mobile&ie=UTF-8',
 	'search?q=' . $placeholders . '&ie=UTF-8&amp;client=ms-android-samsung',
 	'search?client=ms-rim&hl=es&q=' . $placeholders . '&ie=UTF-8&channel=browser',
 	'search?client=opera&q=' . $placeholders . '&sourceid=opera&ie=UTF-8&oe=UTF-8',
-	'search?client=kmeleon&q=' . $placeholders,
+	'search?client=kmeleon&q=' . $placeholders . '&gws_rd=ssl',
 	'search?client=aff-maxthon-maxthon4&channel=t27&q=' . $placeholders,
 	'search?sourceid=navclient&ie=UTF-8&q=' . $placeholders,
 	'search?hl=en&q=' . $placeholders . '&btnG=Google+Search&aq=f&oq=',
@@ -169,10 +169,8 @@ while (1) {
 			my @links = $res->dom->find('h3.r a[href^="http"]')->each;
 			my $num_links = scalar @links;
 			$site = $links[int(rand($num_links - 1))]->{'href'};
-
-			$site = check_and_replace_bad_urls($site,'https?:\/\/(books|maps)\.google\.com\/.+',\@links,'google only giving back javascript, no a href. fall back to random from quantcast list.');
-			$site = check_and_replace_bad_urls($site,".+\.($badfiles)\$",\@links,'Only bad file types. Falling back to random from quantcast list.');
-
+			$site = check_and_replace_bad_urls($site,$badgoogleurls,\@links,'google only giving back javascript, no a href. fall back to random from quantcast list.');
+			$site = check_and_replace_bad_urls($site,$badfiles,\@links,'Only bad file types. Falling back to random from quantcast list.');
 		} else {
 			next;
 		}
@@ -189,8 +187,8 @@ while (1) {
 
 	# skip parsing binary and non-html files for URLs since binary parsing can use 100% cpu forever 
 	# and failed dom look-ups in non-html text cause script exits
-	say "site: $site\nunparsable file detected, skipping." if ($site =~ /.+\.($badfiles)$/i);
-	next if ($site =~ /.+\.($badfiles)$/i);
+	say "site: $site\nunparsable file detected, skipping." if ($site =~ /$badfiles/i);
+	next if ($site =~ /$badfiles/i);
 
 	if (my $res = $tx->success) {
 		next unless is_html_text($res);
@@ -202,9 +200,8 @@ while (1) {
 		for (my $i=0; $i <= $rand_num_links; $i++) {
 			# choose a random link
 			my $rand_link = $links[int(rand($num_links - 1))];
-
-			$rand_link->{'href'} = check_and_replace_bad_urls($site,'https?:\/\/(books|maps)\.google\.com\/.+',\@links,'google only giving back javascript, no a href. fall back to random from quantcast list.');
-			$rand_link->{'href'} = check_and_replace_bad_urls($rand_link->{'href'},".+\.($badfiles)\$",\@links,'Only bad file types. Falling back to random from quantcast list.');
+			$rand_link->{'href'} = check_and_replace_bad_urls($rand_link->{'href'},'https?:\/\/(books|maps)\.google\.com\/.+',\@links,'google only giving back javascript, no a href. fall back to random from quantcast list.');
+			$rand_link->{'href'} = check_and_replace_bad_urls($rand_link->{'href'},$badfiles,\@links,'Only bad file types. Falling back to random from quantcast list.');
 
 			say $rand_link->{'href'};
 
@@ -212,12 +209,12 @@ while (1) {
 			my $tx = $ua->get($rand_link->{'href'});
 			# skip parsing binary and non-html files for URLs since binary parsing can use 100% cpu forever 
 			# and failed dom look-ups in non-html text cause script exits
-			say "site: " . $rand_link->{'href'} . "\nunparsable file detected, skipping." if ($site =~ /.+\.($badfiles)$/i);
-			next if ($rand_link->{'href'} =~ /.+\.($badfiles)$/i);
+			say "site: " . $rand_link->{'href'} . "\nunparsable file detected, skipping." if ($site =~ /$badfiles/i);
+			next if ($rand_link->{'href'} =~ /$badfiles/i);
 
 			# recurse
 			if (my $res = $tx->success) {
-				next unless is_html_text($res); # script will parse "forever" using 100% CPU if binary file of large size
+				next unless is_html_text($res); # script will parse "forever" using 100% CPU with binary file of large size
 				next unless $res->dom->at('title'); # script will exit if ->text can't be called because no title exists
 				say $res->dom->at('title')->text; 
 				# grab array of valid links on the page
@@ -245,7 +242,7 @@ while (1) {
 }
 
 sub rand_word {
-	# todo: take a length multiplier scalar with shift as argument.
+	# todo: take a length multiplier as argument.
 	#my $multiplier = 1;
 	#$multiplier = shift if @_;
 	#my $rand_length = int(rand(6*$multiplier));
@@ -284,8 +281,6 @@ sub check_and_replace_bad_urls {
 	my @links = @{ $links_array_ref };  
 	my $num_links = scalar @links;
 
-	#say "Debug. url: $url, regex: $regex" if $debug;
-
 	my $loopcount = 0;
 	while ($url =~ /$regex/i) {
 		# randomly pick another url 
@@ -293,7 +288,7 @@ sub check_and_replace_bad_urls {
 		$url = $links[int(rand($num_links - 1))]->{'href'};
 		# this falls back to the quantcast list of sites for a url if the approximate majority of random urls in list matched bad regex
 		if ($loopcount >= ($num_links - 1)) {
-			say "$print_message" if $debug;
+			say "$print_message";
 			my $num = int(rand($num_sites-1));
 			$url = chomp($sites[$num]);
 		}

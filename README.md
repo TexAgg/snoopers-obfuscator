@@ -28,6 +28,14 @@ Then to run in the background:
 
 `nohup perl obfuscate.pl 2>1 &`
 
+The rate of spidering can be scaled. To run five times slower just add "5" as an argument,
+
+`nohup perl obfuscate.pl 5 2>1 &`
+
 The script runs in an infinite loop but it's possible it could encounter an error and stop, so you may want to write a shell script & cron job to ensure it keeps running like,
 
 `while true ; do perl obfuscate.pl 2>1 ; done`
+
+
+
+

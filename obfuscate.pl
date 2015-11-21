@@ -5,10 +5,13 @@ use Modern::Perl;
 use Mojo::UserAgent;
 
 my $debug = 0;
+my $sleep_scaling = $ARGV[0] || '1'; # higher is longer sleep periods. 5 = sleep(existing value*5)
+say $sleep_scaling;
+my $which_google = 'https://www.google.com/'; # 'https://www.google.co.uk/'
 
 # wordlist/dictionary to use for random search terms
 # top 20k most common google search words, https://github.com/first20hours/google-10000-english/blob/master/20k.txt
-# 20k.txt is included in my github fork
+# 20k.txt (minus all *.jobs urls) is included in my github fork
 my $wordlist;
 if (-f '20k.txt') {
 	$wordlist = '20k.txt';
@@ -20,7 +23,7 @@ if (-f '20k.txt') {
 my $badfiles = '.+\\.(pdf|mp3|doc|docx|wav|djvu|gz|zip|rar|bz2|tar|epub|txt|css|xls|jpg|jpeg|gif|png)\\$';
 # fetch, but don't parse URLs ending in these. They are annoyingly self referential and only link to themselves.
 my $badgoogleurls = 'https?:\/\/(books|maps|accounts)\.google\.com\/.+';
-my $baddictionaryurls = 'https?:\/\/(\w+\.)?(merriam-webster|wordcentral|dictionary|reference|macmillandictionary|wiktionary|thefreedictionary|thesaurus|wordreference|businessdictionary|oxforddictionaries)\.com.+'; # todo
+my $baddictionaryurls = 'https?:\/\/(\w+\.)?(merriam-webster|wordcentral|dictionary|reference|macmillandictionary|wiktionary|thefreedictionary|thesaurus|wordreference|businessdictionary|oxforddictionaries)\.(com|org).+'; # todo
 
 # list of user agent strings
 my @ua_strings = (
@@ -189,7 +192,7 @@ while (1) {
 		# if http is used so ISP can log requests everything breaks and half the time no results return.
 		# when they do it's *always* books.google.com or accounts.google.com. never actual search results.
 		# so, https for now. At least the results will contribute to the chaff if not the searches.
-		my $get_request = "https://www.google.com/$actual_random_google_string";
+		my $get_request = "$which_google$actual_random_google_string";
 		say "Search request: $get_request";
 		my $tx = $ua->get($get_request);
 		if (my $res = $tx->success) {
@@ -261,22 +264,22 @@ while (1) {
 					my $tx = $ua->get($rand_link->{'href'});
 
 					# sleep a random amount of time
-					sleep(rand(10));
+					sleep(rand(2*$sleep_scaling));
 				}
 			}
 			# sleep a random amount of time
-			sleep(rand(20));
+			sleep(rand(4*$sleep_scaling));
 		}
 	}
 	# sleep a random amount of time
-	sleep(rand(15));
+	sleep(rand(3*$sleep_scaling));
 }
 
 sub rand_word {
 	# todo: take a length multiplier as argument.
 	#my $multiplier = 1;
 	#$multiplier = shift if @_;
-	#my $rand_length = int(rand(6*$multiplier));
+	#my $rand_length = int(rand(6)*$multiplier);
 	
 	my $rand_length = int(rand(6));
 	my $desired_length = 3 + $rand_length;

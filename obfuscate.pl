@@ -6,7 +6,6 @@ use Mojo::UserAgent;
 
 my $debug = 0;
 my $sleep_scaling = $ARGV[0] || '1'; # higher is longer sleep periods. 5 = sleep(existing value*5)
-say $sleep_scaling;
 my $which_google = 'https://www.google.com/'; # 'https://www.google.co.uk/'
 
 # wordlist/dictionary to use for random search terms

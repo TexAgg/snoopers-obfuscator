@@ -24,7 +24,11 @@ Install Perl >= 5.10, and these modules:
 * Mojolicious
 * Modern::Perl
 
-Then to run in the background:
+The modules can be installed by running `bash install.sh` on Linux.
+
+## Run
+
+ To run in the background:
 
 `nohup perl obfuscate.pl 2>1 &`
 
@@ -36,6 +40,10 @@ The script runs in an infinite loop but it's possible it could encounter an erro
 
 `while true ; do perl obfuscate.pl 2>1 ; done`
 
+## Abort
 
-
-
+When you run it, the output should be something like
+```
+[1] 14194
+```
+`14914` is the `PID` of this process.
